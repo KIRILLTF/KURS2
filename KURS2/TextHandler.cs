@@ -10,22 +10,70 @@ class Formatting
             .Select(l => l.Trim())
             .ToList();
 
-        // Выбираем строки, содержащие import с помощью регулярного выражения
+        // Выбираем строки с import
         List<string> imports = nonEmpty.Where(l => Regex.IsMatch(l, @"\bimport\b")).ToList();
-        // Остальные строки
         List<string> others = nonEmpty.Where(l => !Regex.IsMatch(l, @"\bimport\b")).ToList();
 
-        // Итоговый блок: сначала строки с import, затем остальные
+        // Обрабатываем и сортируем импорты
+        List<string> sortedImports = ProcessImports(imports);
+
+        // Итоговый блок
         List<string> processed = new List<string>();
-        processed.AddRange(imports);
+        processed.AddRange(sortedImports);
         processed.AddRange(others);
 
-        // Если требуется отступ, добавляем табуляцию перед каждой строкой
+        // Добавляем отступы
         if (indent)
         {
             processed = processed.Select(l => "\t" + l).ToList();
         }
         return processed;
+    }
+
+    private List<string> ProcessImports(List<string> imports)
+    {
+        var importGroups = new Dictionary<string, SortedSet<string>>();
+
+        foreach (string import in imports)
+        {
+            var match = Regex.Match(import, @"import\s+([\w\.]+)(?:\s+\(([^)]+)\))?");
+            if (!match.Success) continue;
+
+            string module = match.Groups[1].Value;
+            string entities = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+            if (!importGroups.ContainsKey(module))
+                importGroups[module] = new SortedSet<string>();
+
+            if (entities != null)
+            {
+                foreach (var entity in entities.Split(',').Select(e => e.Trim()))
+                {
+                    importGroups[module].Add(entity);
+                }
+            }
+        }
+
+        return importGroups
+            .OrderBy(kv => kv.Key.Split('.'), new ModuleComparer())
+            .Select(kv => kv.Value.Count > 0
+                ? $"import {kv.Key} ({string.Join(", ", kv.Value)})"
+                : $"import {kv.Key}")
+            .ToList();
+    }
+
+    private class ModuleComparer : IComparer<string[]>
+    {
+        public int Compare(string[] x, string[] y)
+        {
+            int len = Math.Min(x.Length, y.Length);
+            for (int i = 0; i < len; i++)
+            {
+                int cmp = string.Compare(x[i], y[i], StringComparison.Ordinal);
+                if (cmp != 0) return cmp;
+            }
+            return x.Length.CompareTo(y.Length);
+        }
     }
 
     public List<string> Output(string input)
@@ -72,6 +120,7 @@ class Formatting
                 i++;
             }
         }
+
         // Если после последнего where остались строки – обрабатываем их (без дополнительного отступа)
         if (blockStart < lines.Count)
         {
