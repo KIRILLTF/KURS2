@@ -1,5 +1,33 @@
-﻿class Formatting
+﻿using System.Text.RegularExpressions;
+
+class Formatting
 {
+    public List<string> ProcessBlock(List<string> block, bool indent)
+    {
+        // Убираем пустые строки и обрезаем пробелы по краям
+        List<string> nonEmpty = block
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim())
+            .ToList();
+
+        // Выбираем строки, содержащие import с помощью регулярного выражения
+        List<string> imports = nonEmpty.Where(l => Regex.IsMatch(l, @"\bimport\b")).ToList();
+        // Остальные строки
+        List<string> others = nonEmpty.Where(l => !Regex.IsMatch(l, @"\bimport\b")).ToList();
+
+        // Итоговый блок: сначала строки с import, затем остальные
+        List<string> processed = new List<string>();
+        processed.AddRange(imports);
+        processed.AddRange(others);
+
+        // Если требуется отступ, добавляем табуляцию перед каждой строкой
+        if (indent)
+        {
+            processed = processed.Select(l => "\t" + l).ToList();
+        }
+        return processed;
+    }
+
     public List<string> Output(string input)
     {
         List<string> lines = input.Split(new[] { "\n" }, StringSplitOptions.None).ToList();
@@ -9,6 +37,7 @@
         // Индекс начала промежутка (один where)
         int blockStart = 0;
         int i = 0;
+
         while (i < lines.Count)
         {
             if (lines[i].Contains("where"))
@@ -54,52 +83,38 @@
         return result;
     }
 
-    public List<string> ProcessBlock(List<string> block, bool indent)
-    {
-        // Убираем пустые строки и обрезаем пробелы по краям
-        List<string> nonEmpty = block
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l => l.Trim())
-            .ToList();
-
-        // Выбираем строки, содержащие import
-        List<string> imports = nonEmpty.Where(l => l.StartsWith("import ")).ToList();
-        // Остальные строки
-        List<string> others = nonEmpty.Where(l => !l.StartsWith("import ")).ToList();
-
-        // Итоговый блок: сначала строки с import, затем остальные
-        List<string> processed = new List<string>();
-        processed.AddRange(imports);
-        processed.AddRange(others);
-
-        // Если требуется отступ, добавляем табуляцию перед каждой строкой
-        if (indent)
-        {
-            processed = processed.Select(l => "\t" + l).ToList();
-        }
-        return processed;
-    }
-
     public List<string> StringChanger(List<string> lines)
     {
         for (int i = 0; i < lines.Count; i++)
         {
-            if (lines[i].Contains("( "))
-            {
-                lines[i] = lines[i].Replace("( ", "(");
-            }
+            // Оставляем только "одинарные" пробелы.
+            lines[i] = Regex.Replace(lines[i], @"\s{2,}", " ");
 
-            if (lines[i].Contains(" )"))
-            {
-                lines[i] = lines[i].Replace(" )", ")");
-            }
+            // Добавляем пробел после запятой.
+            lines[i] = Regex.Replace(lines[i], @",(?=\S)", ", ");
 
-            if (lines[i].Contains(" , "))
-            {
-                lines[i] = lines[i].Replace(" , ", ", ");
-            }
+            // Заменяем "( " на "(".
+            lines[i] = Regex.Replace(lines[i], @"\(\s", "(");
+
+            // Заменяем " )" на ")".
+            lines[i] = Regex.Replace(lines[i], @"\s\)", ")");
+
+            // Заменяем " , " на ", ".
+            lines[i] = Regex.Replace(lines[i], @"\s,\s", ", ");
         }
 
         return lines;
+    }
+
+    public string Combine(List<string> lines)
+    {
+        string text = "";
+
+        for (int i = 0; i < lines.Count(); i++)
+        {
+            text += lines[i] + "\n";
+        }
+
+        return text;
     }
 }
