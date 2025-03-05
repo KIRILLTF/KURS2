@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml;
-
-namespace FormatterWhile
+﻿namespace FormatterWhile
 {
     class Program
     {
@@ -19,11 +12,10 @@ import M1 (f4, f2, f6)
 
   import numpy.linalg as LA
 
- import M3.M2 (f1, a3)
-
+ import M3.M2 (f1, a3) 
 import M2.M3.M4 (f3, f7)
 
-import A2 import X4
+import A2 import X4 import y6
 import M1.M2 (f3, f5)
 
 import M1 (f1)

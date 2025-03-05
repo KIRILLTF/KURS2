@@ -1,6 +1,4 @@
-﻿using System.Threading.Channels;
-
-internal class Print
+﻿internal class Print
 {
     string input;
 
@@ -9,6 +7,7 @@ internal class Print
         this.input = input;
     }
 
+    // Метод для вывода информации.
     public void PrintText()
     {
         try

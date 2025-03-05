@@ -1,6 +1,4 @@
-﻿using System.Linq.Expressions;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 class Formatting
 {
@@ -55,6 +53,7 @@ class Formatting
             .ToList();
     }
 
+    // Метод, разделяющий строчку с несколькими методами.
     List<string> SplitImports(string input)
     {
         var result = new List<string>();
@@ -68,6 +67,7 @@ class Formatting
         return result;
     }
 
+    // Метод, собирающий все строчки с импортами.
     List<string> importsChecker(List<string> imports)
     {
         List<string> imprts = new List<string>();
@@ -89,6 +89,7 @@ class Formatting
         return imprts;
     }
 
+    // Метод для форматирования текста.
     public List<string> TextFormatter(List<string> usersText, bool indent)
     {
         // Отбор строк, содержащих import.
@@ -108,11 +109,13 @@ class Formatting
         // Добавляем отступы.
         if (indent)
         {
-            processed = processed.Select(l => "\t" + l).ToList();
+            processed = processed.Select(l => "  " + l).ToList();
         }
+
         return processed;
     }
 
+    // Метод для сборки текста.
     public List<string> Output(string input)
     {
         // Удаление пустых строк и пробелов по краям.
@@ -176,12 +179,19 @@ class Formatting
         return result;
     }
 
+    // Метод для удаления ненужных символов и добавления отступов.
     public List<string> StringChanger(List<string> lines)
     {
+        int whereQuantity = 0;
+
         for (int i = 0; i < lines.Count; i++)
         {
+            if (i + 1 < lines.Count && lines[i + 1].Contains("where") && whereQuantity > 0) lines[i] += "\n";
+
+            if (lines[i].Contains("where")) whereQuantity += 1;
+
             // Оставляем только "одинарные" пробелы.
-            lines[i] = Regex.Replace(lines[i], @"\s{2,}", " ");
+            lines[i] = Regex.Replace(lines[i], @"(?<=\S)(  +)", " ");
 
             // Добавляем пробел после запятой.
             lines[i] = Regex.Replace(lines[i], @",(?=\S)", ", ");
@@ -199,6 +209,7 @@ class Formatting
         return lines;
     }
 
+    // Метод, собирающий строчки в одну строку.
     public string Combine(List<string> lines)
     {
         string text = "";
@@ -211,10 +222,13 @@ class Formatting
         return text;
     }
 
+    // Метод, проверяющий корректность грамматики.
     public bool TextChecker(List<string> lines)
     {
         foreach (string line in lines)
         {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
             if (!Regex.IsMatch(line, @"^\s*(let|import|module)\b")) return false;
             
         }
