@@ -1,4 +1,6 @@
-﻿internal class Print
+﻿using System.Threading.Channels;
+
+internal class Print
 {
     string input;
 
@@ -9,15 +11,24 @@
 
     public void PrintText()
     {
-        List<string> result = new Formatting().Output(input);
-        result = new Formatting().StringChanger(result);
-
-        // Вывод результата
-        Console.WriteLine("После форматирования:\n");
-
-        foreach (var line in result)
+        try
         {
-            Console.WriteLine(line);
+            List<string> result = new Formatting().Output(input);
+            result = new Formatting().StringChanger(result);
+
+            // Вывод результата
+            Console.WriteLine("После форматирования:\n");
+
+            foreach (var line in result)
+            {
+                Console.WriteLine(line);
+            }
+        } 
+        catch
+        {
+            Console.WriteLine("Некорректная грамматика");
         }
+        
+
     }
 }

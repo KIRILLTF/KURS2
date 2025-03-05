@@ -1,28 +1,111 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 
 class Formatting
 {
-    public List<string> ProcessBlock(List<string> block, bool indent)
+    // Компоратор, определяющий порядок импортов.
+    private class ModuleComparer : IComparer<string[]>
     {
-        // Убираем пустые строки и обрезаем пробелы по краям
-        List<string> nonEmpty = block
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l => l.Trim())
+        public int Compare(string[] x, string[] y)
+        {
+            int leng = Math.Min(x.Length, y.Length);
+
+            for (int i = 0; i < leng; i++)
+            {
+                int comp = string.Compare(x[i], y[i], StringComparison.Ordinal);
+
+                if (comp != 0) return comp;
+            }
+
+            return x.Length.CompareTo(y.Length);
+        }
+    }
+
+    // Метод, комбинирующий и сортирующий модули и переменные.
+    private List<string> ImportsFormatter(List<string> imports)
+    {
+        var importDict = new Dictionary<string, SortedSet<string>>();
+
+        foreach (string import in imports)
+        {
+            var match = Regex.Match(import, @"import\s+([\w\.]+)(?:\s+\(([^)]+)\))?");
+
+            if (!match.Success) continue;
+
+            string modules = match.Groups[1].Value;
+            string variables = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+            if (!importDict.ContainsKey(modules)) importDict[modules] = new SortedSet<string>();
+
+            if (variables != null)
+            {
+                foreach (var variable in variables.Split(',').Select(x => x.Trim()))
+                {
+                    importDict[modules].Add(variable);
+                }
+            }
+        }
+
+        return importDict
+            .OrderBy(mod => mod.Key.Split('.'), new ModuleComparer())
+            .Select(mod => mod.Value.Count > 0
+                ? $"import {mod.Key} ({string.Join(", ", mod.Value)})"
+                : $"import {mod.Key}")
             .ToList();
+    }
 
-        // Выбираем строки с import
-        List<string> imports = nonEmpty.Where(l => Regex.IsMatch(l, @"\bimport\b")).ToList();
-        List<string> others = nonEmpty.Where(l => !Regex.IsMatch(l, @"\bimport\b")).ToList();
+    List<string> SplitImports(string input)
+    {
+        var result = new List<string>();
+        var matches = Regex.Matches(input, @"(?<=\bimport)\s+[\w\.]+(?:\s*\([^)]+\))?");
 
-        // Обрабатываем и сортируем импорты
-        List<string> sortedImports = ProcessImports(imports);
+        foreach (Match match in matches)
+        {
+            result.Add("import " + match.Value.Trim());
+        }
 
-        // Итоговый блок
+        return result;
+    }
+
+    List<string> importsChecker(List<string> imports)
+    {
+        List<string> imprts = new List<string>();
+
+        foreach (string imp in imports)
+        {
+            if (Regex.Matches(imp, @"\bimport\b").Count > 1)
+            {
+                List<string> imps = SplitImports(imp);
+
+                foreach (string im in imps) imprts.Add(im);
+            }
+            else
+            {
+                imprts.Add(imp);
+            }
+        }
+
+        return imprts;
+    }
+
+    public List<string> TextFormatter(List<string> usersText, bool indent)
+    {
+        // Отбор строк, содержащих import.
+        List<string> importLines = importsChecker(usersText.Where(l => Regex.IsMatch(l, @"\bimport\b")).ToList());
+
+        // Обработка строк, не содержащих импорт.
+        List<string> otherLines = usersText.Where(l => !Regex.IsMatch(l, @"\bimport\b")).ToList();
+
+        // Обработкса и сортировка строчек с импортами.
+        List<string> sortedImports = ImportsFormatter(importLines);
+
+        // Итоговый блок.
         List<string> processed = new List<string>();
         processed.AddRange(sortedImports);
-        processed.AddRange(others);
+        processed.AddRange(otherLines);
 
-        // Добавляем отступы
+        // Добавляем отступы.
         if (indent)
         {
             processed = processed.Select(l => "\t" + l).ToList();
@@ -30,59 +113,20 @@ class Formatting
         return processed;
     }
 
-    private List<string> ProcessImports(List<string> imports)
-    {
-        var importGroups = new Dictionary<string, SortedSet<string>>();
-
-        foreach (string import in imports)
-        {
-            var match = Regex.Match(import, @"import\s+([\w\.]+)(?:\s+\(([^)]+)\))?");
-            if (!match.Success) continue;
-
-            string module = match.Groups[1].Value;
-            string entities = match.Groups[2].Success ? match.Groups[2].Value : null;
-
-            if (!importGroups.ContainsKey(module))
-                importGroups[module] = new SortedSet<string>();
-
-            if (entities != null)
-            {
-                foreach (var entity in entities.Split(',').Select(e => e.Trim()))
-                {
-                    importGroups[module].Add(entity);
-                }
-            }
-        }
-
-        return importGroups
-            .OrderBy(kv => kv.Key.Split('.'), new ModuleComparer())
-            .Select(kv => kv.Value.Count > 0
-                ? $"import {kv.Key} ({string.Join(", ", kv.Value)})"
-                : $"import {kv.Key}")
-            .ToList();
-    }
-
-    private class ModuleComparer : IComparer<string[]>
-    {
-        public int Compare(string[] x, string[] y)
-        {
-            int len = Math.Min(x.Length, y.Length);
-            for (int i = 0; i < len; i++)
-            {
-                int cmp = string.Compare(x[i], y[i], StringComparison.Ordinal);
-                if (cmp != 0) return cmp;
-            }
-            return x.Length.CompareTo(y.Length);
-        }
-    }
-
     public List<string> Output(string input)
     {
-        List<string> lines = input.Split(new[] { "\n" }, StringSplitOptions.None).ToList();
+        // Удаление пустых строк и пробелов по краям.
+        List<string> lines = input
+            .Split(new[] { "\n" }, StringSplitOptions.None).ToList()
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim())
+            .ToList();
+
+        if (!TextChecker(lines)) throw new Exception();
 
         List<string> result = new List<string>();
 
-        // Индекс начала промежутка (один where)
+        // Индекс начала промежутка (один where).
         int blockStart = 0;
         int i = 0;
 
@@ -91,12 +135,12 @@ class Formatting
             if (lines[i].Contains("where"))
             {
                 List<string> block = lines.GetRange(blockStart, i - blockStart);
-                List<string> processedBlock = ProcessBlock(block, indent: false);
+                List<string> processedBlock = TextFormatter(block, indent: false);
                 result.AddRange(processedBlock);
 
-                // Добавляем строку с where – обрезав лишние пробелы
+                // Добавляем строку с where – обрезав лишние пробелы.
                 result.Add(lines[i].Trim());
-                i++; // переходим к следующей строке после where
+                i++; // переходим к следующей строке после where.
 
                 // Собираем блок, принадлежащий данному where, до следующей строки, содержащей where,
                 // или до конца файла.
@@ -108,11 +152,11 @@ class Formatting
                 }
 
                 List<string> whereBlock = lines.GetRange(blockStart, i - blockStart);
-                // Передаем параметр indent:true – все строки блока получат табуляцию
-                List<string> processedWhereBlock = ProcessBlock(whereBlock, indent: true);
+                // Передаем параметр indent:true – все строки блока получат табуляцию.
+                List<string> processedWhereBlock = TextFormatter(whereBlock, indent: true);
                 result.AddRange(processedWhereBlock);
 
-                // Новый блок начинается с текущей позиции
+                // Новый блок начинается с текущей позиции.
                 blockStart = i;
             }
             else
@@ -121,11 +165,11 @@ class Formatting
             }
         }
 
-        // Если после последнего where остались строки – обрабатываем их (без дополнительного отступа)
+        // Если после последнего where остались строки – обрабатываем их (без дополнительного отступа).
         if (blockStart < lines.Count)
         {
             List<string> block = lines.GetRange(blockStart, lines.Count - blockStart);
-            List<string> processedBlock = ProcessBlock(block, indent: false);
+            List<string> processedBlock = TextFormatter(block, indent: false);
             result.AddRange(processedBlock);
         }
 
@@ -166,4 +210,15 @@ class Formatting
 
         return text;
     }
+
+    public bool TextChecker(List<string> lines)
+    {
+        foreach (string line in lines)
+        {
+            if (!Regex.IsMatch(line, @"^\s*(let|import|module)\b")) return false;
+            
+        }
+
+        return true;
+    } 
 }
