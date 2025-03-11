@@ -1,6 +1,4 @@
-﻿using System.Linq.Expressions;
-
-namespace FormatterWhile
+﻿namespace FormatterWhile
 {
     class Program
     {
@@ -15,24 +13,28 @@ import M1(f4, f2, f6)
   import numpy.linalg as LA
 
  import M3.M2(f1, a3) 
-import M2.M3.M4(f3, f7)
+import M1(f3, f7)
 
 import A2 import X4 import y6
 import M1.M2(f3, f5)
 
 import M1(f1)
 
-     import M2.M3.M4(x6)
+     import M2.M3.M4(a5)
 
 let some_root(a , b  , c  ) :=   (  b +   math.sqrt(( discriminant(a, b, c ) ) )) / a where
 
-  let discriminant(   a, b,c   ) := (b ^ 2) - 4 * (a * c)
+  let discriminant(   a, b,c   ) := (b ^ 2) - 4 * (a * c) 
 
 
   import math 
 
-let my_fun(x, y, z) := x + y + z
-let my_constant := my_fun(1, 2, 3)";
+let my_fun(x, y, z) := x + y + z where
+
+let my_constant := my_fun(1, 2, 3)
+import mlf( x1, 4)
+
+";
 
             str = new Parser().StringChanger(str);
 
@@ -53,7 +55,7 @@ let my_constant := my_fun(1, 2, 3)";
                 }
             }
             
-            Sentences = new Formatter().MergeVariables(Sentences);
+            Sentences = new Formatter().Format(Sentences);
 
             new Output().PrintFormattedSentences(Sentences);
         }

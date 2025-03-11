@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 class Formatter
-{ /*
+{
     public List<Sentence> Format(List<Sentence> sentences)
     {
         // Объединяем переменные у объектов с одинаковыми списками модулей
@@ -13,7 +13,7 @@ class Formatter
         var sortedSentences = SortSentences(mergedSentences);
 
         return sortedSentences;
-    } */
+    }
 
     // Объединяет переменные у объектов с одинаковыми списками модулей
     public List<Sentence> MergeVariables(List<Sentence> sentences)
@@ -34,30 +34,37 @@ class Formatter
         return sentences;
     }
 
-    /* Сортирует предложения
-    private List<Sentence> SortSentences(List<Sentence> sentences)
+    public List<Sentence> SortSentences(List<Sentence> sentences)
     {
-        // Группируем предложения по наличию where
-        var grouped = sentences.GroupBy(s => s is LetSentence let && let.HasWhere);
-
         var result = new List<Sentence>();
+        var block = new List<Sentence>();
 
-        foreach (var group in grouped)
+        foreach (var sentence in sentences)
         {
-            if (group.Key) // Группа с where
+            if (sentence.Variables != null)
+                sentence.Variables = sentence.Variables.OrderBy(s => s).ToList();
+
+            if (sentence is ModuleSentence || (sentence is LetSentence let && let.HasWhere))
             {
-                // Сначала добавляем импорты, затем остальные
-                result.AddRange(group.Where(s => s is ImportSentence).OrderBy(s => GetSentenceKey(s)));
-                result.AddRange(group.Where(s => !(s is ImportSentence)));
+                result.AddRange(SortImports(block));
+                block.Clear();
+                result.Add(sentence);
             }
-            else // Группа без where
+            else
             {
-                // Сначала добавляем импорты, затем остальные
-                result.AddRange(group.Where(s => s is ImportSentence).OrderBy(s => GetSentenceKey(s)));
-                result.AddRange(group.Where(s => !(s is ImportSentence)));
+                block.Add(sentence);
             }
         }
+        result.AddRange(SortImports(block));
 
         return result;
-    } */
+    }
+
+    private IEnumerable<Sentence> SortImports(List<Sentence> sentences)
+    {
+        var imports = sentences.OfType<ImportSentence>().OrderBy(x => string.Join(".", x.Name));
+        var others = sentences.Except(sentences.OfType<ImportSentence>());
+
+        return imports.Concat(others);
+    }
 }
