@@ -1,21 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-
-class Formatter
+﻿class Formatter
 {
     public List<Sentence> Format(List<Sentence> sentences)
     {
-        // Объединяем переменные у объектов с одинаковыми списками модулей
         var mergedSentences = MergeVariables(sentences);
-
-        // Сортируем предложения
         var sortedSentences = SortSentences(mergedSentences);
 
         return sortedSentences;
     }
 
-    // Объединяет переменные у объектов с одинаковыми списками модулей
     public List<Sentence> MergeVariables(List<Sentence> sentences)
     {
         for (int i = 0; i < sentences.Count; i++)

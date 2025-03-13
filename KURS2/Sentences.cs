@@ -28,15 +28,13 @@ class ImportSentence : Sentence
 
 class LetSentence : Sentence
 {
-    public string Parameters { get; }
     public string Expression { get; }
     public bool HasWhere { get; }
 
-    public LetSentence(List<string> name, List<string> variables, string parameters, string expression, bool hasWhere)
+    public LetSentence(List<string> name, List<string> variables, string expression, bool hasWhere)
     {
         Name = name;
         Variables = variables;
-        Parameters = parameters;
         Expression = expression;
         HasWhere = hasWhere;
     }

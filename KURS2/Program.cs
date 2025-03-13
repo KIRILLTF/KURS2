@@ -24,7 +24,7 @@ import M1(f1)
 
 let some_root(a , b  , c  ) :=   (  b +   math.sqrt(( discriminant(a, b, c ) ) )) / a where
 
-  let discriminant(   a, b,c   ) := (b ^ 2) - 4 * (a * c) 
+  let discriminant(   a, b,c   ) := (b ^ 2) - 4 * (a * c)
 
 
   import math 
@@ -37,6 +37,7 @@ import mlf( x1, 4)
 ";
 
             str = new Parser().StringChanger(str);
+            str = new Parser().SplitImports(str);
 
             List<string> inputs = str.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).ToList();
             List<Sentence> Sentences = new List<Sentence>();
@@ -54,7 +55,7 @@ import mlf( x1, 4)
                     Console.WriteLine(ex.Message);
                 }
             }
-            
+
             Sentences = new Formatter().Format(Sentences);
 
             new Output().PrintFormattedSentences(Sentences);

@@ -41,11 +41,13 @@ class Parser
             var match = letPattern.Match(input);
             var name = SplitName(match.Groups[1].Value);
             var variables = ExtractVariables(match.Groups[2].Value);
-            var parameters = match.Groups[2].Value;
             var expression = match.Groups[3].Value;
             var hasWhere = input.EndsWith(" where");
 
-            return new LetSentence(name, variables, parameters, expression, hasWhere);
+            LetSentence letSentence = new LetSentence(name, variables, expression, hasWhere);
+            ValidateExpression(letSentence);
+
+            return letSentence;
         }
 
         throw new ArgumentException($"Ошибка: Некорректная строка — {input}");
@@ -55,6 +57,27 @@ class Parser
     private List<string> SplitName(string name)
     {
         return name.Split('.').ToList();
+    }
+
+    public string SplitImports(string text)
+    {
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var result = new List<string>();
+
+        foreach (var line in lines)
+        {
+            if (line.Trim().StartsWith("import"))
+            {
+                var imports = Regex.Split(line, @"(?<=\))\s+(?=import)|(?<=import\s+[a-zA-Z0-9_.]+)\s+(?=import)");
+                result.AddRange(imports);
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join(Environment.NewLine, result);
     }
 
     // Извлекает переменные из скобок
@@ -90,5 +113,20 @@ class Parser
         }
 
         return string.Join(Environment.NewLine, lines);
+    }
+
+    public void ValidateExpression(LetSentence letSentence)
+    {
+        string expression = letSentence.Expression;
+        var validVariables = letSentence.Variables;
+
+        if (expression.Count(c => c == '(') != expression.Count(c => c == ')'))
+            throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
+
+        if (Regex.IsMatch(expression.Replace(" ", ""), @"[\+\-\*/\^]{2,}"))
+            throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
+
+        if (Regex.IsMatch(expression.Trim(), @"^[\+\-\*/\^]|[\+\-\*/\^]$"))
+            throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
     }
 }
