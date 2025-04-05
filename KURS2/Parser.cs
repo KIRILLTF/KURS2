@@ -45,7 +45,13 @@ class Parser
             var hasWhere = input.EndsWith(" where");
 
             LetSentence letSentence = new LetSentence(name, variables, expression, hasWhere);
+
+            // Проверка корректности выражения
             ValidateExpression(letSentence);
+
+            // Заполняем списки операторов и функций (простейший способ)
+            letSentence.Operators = ExtractOperators(expression);
+            letSentence.Functions = ExtractFunctions(expression);
 
             return letSentence;
         }
@@ -59,27 +65,6 @@ class Parser
         return name.Split('.').ToList();
     }
 
-    public string SplitImports(string text)
-    {
-        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        var result = new List<string>();
-
-        foreach (var line in lines)
-        {
-            if (line.Trim().StartsWith("import"))
-            {
-                var imports = Regex.Split(line, @"(?<=\))\s+(?=import)|(?<=import\s+[a-zA-Z0-9_.]+)\s+(?=import)");
-                result.AddRange(imports);
-            }
-            else
-            {
-                result.Add(line);
-            }
-        }
-
-        return string.Join(Environment.NewLine, result);
-    }
-
     // Извлекает переменные из скобок
     private List<string> ExtractVariables(string variables)
     {
@@ -89,14 +74,41 @@ class Parser
         return variables.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
-    // Метод для удаления ненужных символов
+    // Простейший метод для извлечения операторов
+    // Ищем символы +, -, /, *, ^
+    private List<string> ExtractOperators(string expression)
+    {
+        var result = new List<string>();
+        var matches = Regex.Matches(expression, @"[\+\-\*/\^]");
+        foreach (Match m in matches)
+        {
+            result.Add(m.Value);
+        }
+        return result;
+    }
+
+    // Простейший метод для извлечения имен функций
+    // Ищем любые последовательности (a-zA-Z_) перед "("
+    private List<string> ExtractFunctions(string expression)
+    {
+        var result = new List<string>();
+        var matches = Regex.Matches(expression, @"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(");
+        foreach (Match m in matches)
+        {
+            // Группа 1 — это предполагаемое имя функции
+            result.Add(m.Groups[1].Value);
+        }
+        return result;
+    }
+
+    // Метод для удаления ненужных символов, форматирования и т.п.
     public string StringChanger(string text)
     {
         List<string> lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).ToList();
 
         for (int i = 0; i < lines.Count; i++)
         {
-            // Оставляем только "одинарные" пробелы
+            // Оставляем только одиночные пробелы
             lines[i] = Regex.Replace(lines[i].Trim(), @"\s+", " ");
 
             // Заменяем "( " на "("
@@ -115,17 +127,43 @@ class Parser
         return string.Join(Environment.NewLine, lines);
     }
 
+    // Разбивает одну строку с несколькими import на несколько строк
+    public string SplitImports(string text)
+    {
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var result = new List<string>();
+
+        foreach (var line in lines)
+        {
+            if (line.Trim().StartsWith("import"))
+            {
+                var imports = Regex.Split(line,
+                    @"(?<=\))\s+(?=import)|(?<=import\s+[a-zA-Z0-9_.]+)\s+(?=import)");
+                result.AddRange(imports);
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join(Environment.NewLine, result);
+    }
+
+    // Проверка корректности выражения в let-предложении
     public void ValidateExpression(LetSentence letSentence)
     {
         string expression = letSentence.Expression;
-        var validVariables = letSentence.Variables;
 
+        // Проверка баланса скобок
         if (expression.Count(c => c == '(') != expression.Count(c => c == ')'))
             throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
 
+        // Проверка на дубли операторов вида ++, --, **, ^^ и т.п.
         if (Regex.IsMatch(expression.Replace(" ", ""), @"[\+\-\*/\^]{2,}"))
             throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
 
+        // Проверка, чтобы выражение не начиналось и не заканчивалось оператором
         if (Regex.IsMatch(expression.Trim(), @"^[\+\-\*/\^]|[\+\-\*/\^]$"))
             throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
     }

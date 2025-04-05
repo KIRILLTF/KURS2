@@ -8,7 +8,9 @@
         {
             if (sentence is ModuleSentence module)
             {
+                // Перед первым module (и вообще после предыдущих конструкций) можно печатать пустую строку
                 if (whereQuantity > 0) Console.WriteLine();
+
                 Console.WriteLine($"module {string.Join(".", module.Name)} where");
                 whereQuantity++;
             }
@@ -31,7 +33,6 @@
                 {
                     if (whereQuantity > 0) Console.WriteLine();
                     whereQuantity++;
-                    Console.Write("");
                 }
                 else
                 {

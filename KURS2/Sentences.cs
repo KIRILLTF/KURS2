@@ -2,15 +2,18 @@
 {
     public List<string> Name;
     public List<string> Variables { get; set; }
+    public List<string> Operators { get; set; }
+    public List<string> Functions { get; set; }
 }
 
 class ModuleSentence : Sentence
 {
-
     public ModuleSentence(List<string> name, List<string> variables = null)
     {
         Name = name;
         Variables = variables;
+        Operators = new List<string>();
+        Functions = new List<string>();
     }
 }
 
@@ -23,6 +26,9 @@ class ImportSentence : Sentence
         Name = name;
         Variables = variables;
         Alias = alias;
+
+        Operators = new List<string>();
+        Functions = new List<string>();
     }
 }
 
@@ -37,5 +43,8 @@ class LetSentence : Sentence
         Variables = variables;
         Expression = expression;
         HasWhere = hasWhere;
+
+        Operators = new List<string>();
+        Functions = new List<string>();
     }
 }
