@@ -1,4 +1,9 @@
-﻿namespace ParserRulesGenerator
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+
+namespace ParserRulesGenerator
 {
     class Program
     {
@@ -30,7 +35,8 @@
                 Console.WriteLine("Сгенерирован класс Parser (GeneratedParser.cs).");
 
                 Console.WriteLine("\nВведите строку для парсинга (введите 'exit' для выхода):");
-
+                
+                // Создаём экземпляр сгенерированного парсера
                 var parser = new Parser();
 
                 while (true)
@@ -43,9 +49,10 @@
 
                     try
                     {
+                        // Попытка распарсить
                         object resultObject = parser.Parse(inputLine);
 
-                        Console.WriteLine($"\n=== РЕЗУЛЬТАТ ПАРСИНГА ===");
+                        Console.WriteLine("\n=== РЕЗУЛЬТАТ ПАРСИНГА ===");
                         Console.WriteLine($"Тип: {resultObject.GetType().Name}");
                         Console.WriteLine("Свойства:");
 
@@ -53,15 +60,27 @@
                         foreach (var prop in props)
                         {
                             var value = prop.GetValue(resultObject);
-                            var innerProp = value?.GetType().GetProperty("Value");
-                            if (innerProp != null)
+
+                            // 1) Если это алгебраическое Expression – печатаем дерево
+                            if (value is Expression expr)
                             {
-                                var innerValue = innerProp.GetValue(value);
-                                Console.WriteLine($"  {prop.Name}: {innerValue}");
+                                Console.WriteLine($"  {prop.Name}: (Expression AST)");
+                                ExpressionPrinter.Print(expr, "    ");
                             }
+                            // 2) Если есть вложенное поле Value (например, для varName с int/string/etc.)
                             else
                             {
-                                Console.WriteLine($"  {prop.Name}: {value}");
+                                // пытаемся найти свойство "Value"
+                                var innerProp = value?.GetType().GetProperty("Value");
+                                if (innerProp != null)
+                                {
+                                    var innerValue = innerProp.GetValue(value);
+                                    Console.WriteLine($"  {prop.Name}: {innerValue}");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"  {prop.Name}: {value}");
+                                }
                             }
                         }
                     }

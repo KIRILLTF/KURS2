@@ -1,4 +1,5 @@
-﻿using System;
+﻿// ParserGenerator.cs
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -23,10 +24,10 @@ namespace ParserRulesGenerator
         /// <summary>
         /// Генерирует класс Parser, в котором для каждого RULE: и ERROR:
         /// создаём статические поля Regex и if-блоки.
-        /// 
+        ///
         /// - Обычные RULE: -> if(...) { ... return new RuleName(...); }
-        /// - ERROR: -> if(...) { throw new Exception("Пользовательская ошибка: ..."); }
-        /// 
+        /// - ERROR: -> if(...) { throw new Exception("..."); }
+        ///
         /// Порядок: Сначала обрабатываем ERROR-правила, затем обычные.
         /// </summary>
         public string GenerateParserClass()
@@ -40,40 +41,37 @@ namespace ParserRulesGenerator
             sb.AppendLine("public class Parser");
             sb.AppendLine("{");
 
-            // Списки для полей и для if-блоков
+            // ПОЛЯ для Regex
             var patternFields = new List<string>();
-
             var errorIfBlocks = new List<string>();
             var normalIfBlocks = new List<string>();
 
             foreach (var rule in _rules)
             {
-                // Название поля => ruleNamePattern
                 string fieldName = char.ToLower(rule.RuleName[0]) + rule.RuleName.Substring(1) + "Pattern";
-
-                // Построим паттерн
+                // Соберём паттерн
                 string regexPattern = BuildRegexPattern(rule.RuleBody);
 
-                // Добавляем поле
+                // Поле Regex
                 patternFields.Add(
                     $"    private static readonly Regex {fieldName} = new(@\"{regexPattern}\", RegexOptions.Compiled);"
                 );
 
-                // Генерируем if-блок
+                // if-блок
                 if (rule.IsErrorRule)
                 {
-                    // Ошибочное правило => при совпадении бросаем ошибку
+                    // Ошибочное правило
                     string block = $@"
-        // Error rule: {rule.RuleName}
-        if ({fieldName}.IsMatch(input))
-        {{
-            throw new Exception(""Пользовательская ошибка: {rule.RuleName}"");
-        }}";
+     // Error rule: {rule.RuleName}
+     if ({fieldName}.IsMatch(input))
+     {{
+         throw new Exception(""Пользовательская ошибка: {rule.RuleName}"");
+     }}";
                     errorIfBlocks.Add(block);
                 }
                 else
                 {
-                    // Обычное правило => сборка объекта
+                    // Обычное правило
                     string block = BuildIfBlock(rule, fieldName);
                     normalIfBlocks.Add(block);
                 }
@@ -87,17 +85,13 @@ namespace ParserRulesGenerator
             sb.AppendLine("    public object Parse(string input)");
             sb.AppendLine("    {");
 
-            // Сначала проверяем все ERROR-правила
+            // Сначала ERROR
             foreach (var errBlock in errorIfBlocks)
-            {
                 sb.AppendLine(errBlock);
-            }
 
-            // Потом обычные
+            // Потом нормальные правила
             foreach (var ruleBlock in normalIfBlocks)
-            {
                 sb.AppendLine(ruleBlock);
-            }
 
             sb.AppendLine("        throw new ArgumentException($\"Ни один шаблон не подошел для строки: {input}\");");
             sb.AppendLine("    }");
@@ -107,8 +101,7 @@ namespace ParserRulesGenerator
         }
 
         /// <summary>
-        /// "while ( <varName> <comparisonOperator> <intValue> )"
-        /// -> "^\\s*while\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|<|>|<=|>=)\\s*([0-9]+)\\s*\\)\\s*$"
+        /// Построить Regex-паттерн, заменяя <Type> на (паттерн) или (.+?) для Expression
         /// </summary>
         private string BuildRegexPattern(string ruleBody)
         {
@@ -122,25 +115,28 @@ namespace ParserRulesGenerator
                 string literal = ruleBody.Substring(curIndex, m.Index - curIndex);
                 sb.Append(Regex.Escape(literal));
 
-                // Вырезаем слот
+                // Вырезаем имя слота
                 string slot = m.Groups[1].Value.Trim();
 
-                // если тип известен, подставляем паттерн, иначе (.+?)
-                if (_knownTypes.TryGetValue(slot, out var info))
+                // Особый случай: Expression
+                if (string.Equals(slot, "Expression", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Пример: "[a-zA-Z_][a-zA-Z0-9_]*"
+                    // Парсим всё что угодно до следующего разделителя
+                    sb.Append("(.+?)");
+                }
+                else if (_knownTypes.TryGetValue(slot, out var info))
+                {
                     string pattern = info.Pattern.Trim();
-
-                    // Удалим внешние скобки
                     if (pattern.StartsWith("(") && pattern.EndsWith(")"))
                     {
+                        // Уберём внешние скобки
                         pattern = pattern.Substring(1, pattern.Length - 2);
                     }
-
                     sb.Append("(" + pattern + ")");
                 }
                 else
                 {
+                    // fallback
                     sb.Append("(.+?)");
                 }
 
@@ -154,13 +150,10 @@ namespace ParserRulesGenerator
                 sb.Append(Regex.Escape(tail));
             }
 
+            // Добавим ^\s*...\s*$
             return "^\\s*" + sb.ToString() + "\\s*$";
         }
 
-        /// <summary>
-        /// Генерирует блок if(...) { return new RuleName(...); }
-        /// с извлечением групп match.Groups[...] и созданием объектов типов (varName etc.).
-        /// </summary>
         private string BuildIfBlock(GrammarRule rule, string fieldName)
         {
             var sb = new StringBuilder();
@@ -179,25 +172,29 @@ namespace ParserRulesGenerator
                 string rawVarName = $"raw{i + 1}";
                 string typedVarName = $"slot{i + 1}";
 
-                // var raw1 = match.Groups[1].Value;
+                // Считываем строку
                 rawVars.Add($"var {rawVarName} = match.Groups[{groupIndex}].Value;");
 
-                // Пытаемся определить .NET-тип
-                string netType = "string";
-                if (_knownTypes.TryGetValue(slotName, out var info))
+                if (string.Equals(slotName, "Expression", StringComparison.OrdinalIgnoreCase))
                 {
-                    netType = info.NetType;
+                    // Вызываем ExpressionParser
+                    typedVars.Add($"var {typedVarName} = ParserRulesGenerator.ExpressionParser.Parse({rawVarName});");
+                    constructorArgs.Add(typedVarName);
                 }
+                else
+                {
+                    // Обычный слот, возможно известного типа
+                    string netType = "string";
+                    if (_knownTypes.TryGetValue(slotName, out var info))
+                        netType = info.NetType;
 
-                // PascalCase для класса
-                string pascalClassName = ToPascalCase(slotName);
+                    string pascalClassName = ToPascalCase(slotName);
+                    string parseCode = GetParseExpression(netType, rawVarName);
 
-                string parseCode = GetParseExpression(netType, rawVarName);
-
-                // var slot1 = new VarName { Value = int.Parse(raw1) };
-                typedVars.Add($"var {typedVarName} = new {pascalClassName} {{ Value = {parseCode} }};");
-
-                constructorArgs.Add(typedVarName);
+                    // Пример: var slot1 = new VarName { Value = raw1 };
+                    typedVars.Add($"var {typedVarName} = new {pascalClassName} {{ Value = {parseCode} }};");
+                    constructorArgs.Add(typedVarName);
+                }
             }
 
             foreach (var rv in rawVars)
@@ -212,10 +209,6 @@ namespace ParserRulesGenerator
 
         private string GetParseExpression(string netType, string rawVarName)
         {
-            // int -> int.Parse
-            // bool -> bool.Parse
-            // double -> double.Parse(...,CultureInfo.InvariantCulture)
-            // иначе -> raw
             switch (netType.ToLower())
             {
                 case "int":

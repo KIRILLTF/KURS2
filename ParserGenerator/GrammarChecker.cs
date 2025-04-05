@@ -28,7 +28,6 @@
             CheckMissingRuleNames();
             CheckSlotReferences();
             CheckDirectLeftRecursion();
-            // Здесь можно добавить и другие проверки
         }
 
         /// <summary>
@@ -46,7 +45,8 @@
         }
 
         /// <summary>
-        /// Проверяем, что все <slots> ссылаются либо на известные TYPE:, либо на другие RULE: (если это нужно).
+        /// Проверяем, что все <slots> ссылаются либо на известные TYPE:, 
+        /// либо на другие RULE:, за исключением спецслота <Expression>, который игнорируем.
         /// </summary>
         private void CheckSlotReferences()
         {
@@ -54,15 +54,26 @@
             {
                 foreach (var slot in rule.Slots)
                 {
-                    // Слот может быть varName|intValue, split по '|'
+                    // Слот может быть, например, varName|intValue
                     var variants = slot.Split('|');
                     foreach (var variant in variants)
                     {
                         var trimmed = variant.Trim();
+
+                        // -- Добавляем пропуск для <Expression>:
+                        if (trimmed.Equals("Expression", System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Пропускаем проверку, пусть <Expression> всегда считается валидным
+                            continue;
+                        }
+
                         // Есть ли такой TYPE: ?
                         bool isKnownType = _knownTypes.ContainsKey(trimmed);
-                        // Или есть ли такое RULE: (если в грамматике разрешены нетерминалы как отдельные RULE)
-                        bool isRule = _rules.Any(r => r.RuleName.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+
+                        // Или есть ли такое RULE:
+                        // (если в грамматике разрешено использовать имена правил как нетерминалы)
+                        bool isRule = _rules.Any(r =>
+                            r.RuleName.Equals(trimmed, System.StringComparison.OrdinalIgnoreCase));
 
                         if (!isKnownType && !isRule)
                         {
@@ -91,11 +102,13 @@
 
                 // первый слот
                 var firstSlot = rule.Slots.First();
+
                 // Если правило называется Expr, и первый слот = Expr => прямая левая рекурсия
-                if (string.Equals(firstSlot, rule.RuleName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(firstSlot, rule.RuleName, System.StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new Exception($"Левая рекурсия в правиле {rule.RuleName}: " +
-                                        $"первый слот совпадает с именем правила");
+                    throw new Exception(
+                        $"Левая рекурсия в правиле {rule.RuleName}: " +
+                        $"первый слот совпадает с именем правила");
                 }
             }
         }

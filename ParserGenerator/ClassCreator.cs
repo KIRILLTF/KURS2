@@ -1,4 +1,5 @@
-﻿using System;
+﻿// ClassCreator.cs
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -67,16 +68,15 @@ namespace ParserRulesGenerator
                 {
                     // Отличаемся только флагом IsErrorRule
                     bool isErrorRule = line.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase);
-
-                    // Отрежем "RULE:" или "ERROR:"
                     var prefixToRemove = isErrorRule ? "ERROR:" : "RULE:";
                     var rest = line.Substring(prefixToRemove.Length).Trim();
                     var parts = rest.Split(new[] { "::=" }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 2)
                     {
-                        var ruleName = parts[0].Trim();   // "MissingVariable" или "WhileLoop"
-                        var ruleBody = parts[1].Trim();   // "let = <intValue> ;" и т.д.
+                        var ruleName = parts[0].Trim();
+                        var ruleBody = parts[1].Trim();
 
+                        // Слоты <...>
                         var matches = Regex.Matches(ruleBody, @"<([^>]+)>");
                         var slots = new List<string>();
                         foreach (Match m in matches)
@@ -84,9 +84,7 @@ namespace ParserRulesGenerator
                             string inside = m.Groups[1].Value;
                             // Запрещаем '|'
                             if (inside.Contains("|"))
-                            {
                                 throw new NotSupportedException($"Альтернативы <{inside}> не поддерживаются.");
-                            }
 
                             slots.Add(inside.Trim());
                         }
@@ -114,7 +112,7 @@ namespace ParserRulesGenerator
         {
             var sb = new StringBuilder();
 
-            // 1) Типы
+            // 1) Генерируем классы типов (из KnownTypes)
             foreach (var kvp in KnownTypes)
             {
                 string typeName = kvp.Key;
@@ -134,7 +132,7 @@ namespace ParserRulesGenerator
                 sb.AppendLine();
             }
 
-            // 2) Обычные правила
+            // 2) Генерируем классы для обычных правил (IsErrorRule == false)
             foreach (var rule in Rules.Where(r => !r.IsErrorRule))
             {
                 sb.AppendLine($"public class {rule.RuleName}");
@@ -149,36 +147,62 @@ namespace ParserRulesGenerator
                 for (int i = 0; i < rule.Slots.Count; i++)
                 {
                     string slotType = rule.Slots[i];
-                    if (!KnownTypes.ContainsKey(slotType))
+                    // Проверяем: Expression?
+                    if (string.Equals(slotType, "Expression", StringComparison.OrdinalIgnoreCase))
                     {
-                        // fallback
-                        string propName = $"UnknownType{i + 1}";
-                        propertyLines.Add($"public string {propName} {{ get; }}");
-                        ctorParams.Add($"string {propName.ToLower()}");
-                        ctorAssigns.Add($"this.{propName} = {propName.ToLower()};");
+                        // Генерируем что-то вроде: public Expression Expression1 { get; }
+                        if (!typeCount.ContainsKey(slotType))
+                            typeCount[slotType] = 1;
+                        else
+                            typeCount[slotType]++;
+
+                        int index = typeCount[slotType];
+                        string propName = $"Expression{index}";
+
+                        propertyLines.Add($"public Expression {propName} {{ get; }}");
+
+                        string paramName = char.ToLower(propName[0]) + propName.Substring(1);
+                        ctorParams.Add($"Expression {paramName}");
+                        ctorAssigns.Add($"this.{propName} = {paramName};");
                     }
                     else
                     {
-                        string pascalSlot = ToPascalCase(slotType);
-                        if (!typeCount.ContainsKey(slotType)) typeCount[slotType] = 1;
-                        else typeCount[slotType]++;
+                        // Обычная логика
+                        if (!KnownTypes.ContainsKey(slotType))
+                        {
+                            // fallback: строка
+                            string propName = $"UnknownType{i + 1}";
+                            propertyLines.Add($"public string {propName} {{ get; }}");
+                            ctorParams.Add($"string {propName.ToLower()}");
+                            ctorAssigns.Add($"this.{propName} = {propName.ToLower()};");
+                        }
+                        else
+                        {
+                            string pascalSlot = ToPascalCase(slotType);
+                            if (!typeCount.ContainsKey(slotType))
+                                typeCount[slotType] = 1;
+                            else
+                                typeCount[slotType]++;
 
-                        int index = typeCount[slotType];
-                        string propName = $"{pascalSlot}{index}";
-                        propertyLines.Add($"public {pascalSlot} {propName} {{ get; }}");
+                            int index = typeCount[slotType];
+                            string propName = $"{pascalSlot}{index}";
+                            propertyLines.Add($"public {pascalSlot} {propName} {{ get; }}");
 
-                        string paramName = char.ToLower(propName[0]) + propName.Substring(1);
-                        ctorParams.Add($"{pascalSlot} {paramName}");
-                        ctorAssigns.Add($"this.{propName} = {paramName};");
+                            string paramName = char.ToLower(propName[0]) + propName.Substring(1);
+                            ctorParams.Add($"{pascalSlot} {paramName}");
+                            ctorAssigns.Add($"this.{propName} = {paramName};");
+                        }
                     }
                 }
 
+                // Выводим автосвойства
                 foreach (var line in propertyLines)
                 {
                     sb.AppendLine($"    {line}");
                 }
                 sb.AppendLine();
 
+                // Генерируем конструктор
                 sb.AppendLine($"    public {rule.RuleName}({string.Join(", ", ctorParams)})");
                 sb.AppendLine("    {");
                 foreach (var assign in ctorAssigns)
