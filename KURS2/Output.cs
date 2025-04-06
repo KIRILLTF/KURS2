@@ -1,4 +1,7 @@
-﻿class Output
+﻿using System;
+using System.Collections.Generic;
+
+class Output
 {
     public void PrintFormattedSentences(List<Sentence> sentences)
     {
@@ -8,9 +11,7 @@
         {
             if (sentence is ModuleSentence module)
             {
-                // Перед первым module (и вообще после предыдущих конструкций) можно печатать пустую строку
                 if (whereQuantity > 0) Console.WriteLine();
-
                 Console.WriteLine($"module {string.Join(".", module.Name)} where");
                 whereQuantity++;
             }
@@ -33,6 +34,7 @@
                 {
                     if (whereQuantity > 0) Console.WriteLine();
                     whereQuantity++;
+                    Console.Write("");
                 }
                 else
                 {
@@ -40,12 +42,13 @@
                 }
 
                 Console.Write($"let {string.Join(".", let.Name)}");
-
                 if (let.Variables != null && let.Variables.Count > 0)
                 {
                     Console.Write($"({string.Join(", ", let.Variables)})");
                 }
-                Console.Write($" := {let.Expression}");
+
+                // Теперь имя поля — ExpressionString
+                Console.Write($" := {let.ExpressionString}");
 
                 if (let.HasWhere)
                 {

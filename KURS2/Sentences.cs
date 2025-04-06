@@ -1,9 +1,10 @@
-﻿abstract class Sentence
+﻿using System;
+using System.Collections.Generic;
+
+abstract class Sentence
 {
     public List<string> Name;
     public List<string> Variables { get; set; }
-    public List<string> Operators { get; set; }
-    public List<string> Functions { get; set; }
 }
 
 class ModuleSentence : Sentence
@@ -12,8 +13,6 @@ class ModuleSentence : Sentence
     {
         Name = name;
         Variables = variables;
-        Operators = new List<string>();
-        Functions = new List<string>();
     }
 }
 
@@ -26,25 +25,33 @@ class ImportSentence : Sentence
         Name = name;
         Variables = variables;
         Alias = alias;
-
-        Operators = new List<string>();
-        Functions = new List<string>();
     }
 }
 
+/// <summary>
+/// Предложение let: теперь хранит и строку выражения, и синтактическое дерево
+/// </summary>
 class LetSentence : Sentence
 {
-    public string Expression { get; }
+    public string ExpressionString { get; }
     public bool HasWhere { get; }
 
-    public LetSentence(List<string> name, List<string> variables, string expression, bool hasWhere)
+    /// <summary>
+    /// Синтактическое дерево (AST) для выражения
+    /// </summary>
+    public ExpressionNode ExpressionAst { get; }
+
+    public LetSentence(
+        List<string> name,
+        List<string> variables,
+        string expressionString,
+        bool hasWhere,
+        ExpressionNode expressionAst)
     {
         Name = name;
         Variables = variables;
-        Expression = expression;
+        ExpressionString = expressionString;
         HasWhere = hasWhere;
-
-        Operators = new List<string>();
-        Functions = new List<string>();
+        ExpressionAst = expressionAst;
     }
 }
