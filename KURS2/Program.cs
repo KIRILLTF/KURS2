@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace FormatterWhile
+﻿namespace FormatterWhile
 {
     class Program
     {
