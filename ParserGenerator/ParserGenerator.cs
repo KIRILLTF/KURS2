@@ -29,9 +29,6 @@ namespace ParserRulesGenerator
         {
             var sb = new StringBuilder();
 
-            sb.AppendLine("using System;");
-            sb.AppendLine("using System.Text.RegularExpressions;");
-            sb.AppendLine("using System.Globalization;");
             sb.AppendLine();
             sb.AppendLine("public class Parser");
             sb.AppendLine("{");
