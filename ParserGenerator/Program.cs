@@ -1,11 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using System;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Collections.Generic;
-using ParserRulesGenerator;  // <- Где лежит ClassCreator, ParserGenerator, Expression, ExpressionPrinter
+using ParserRulesGenerator;  // Для доступа к ClassCreator, ParserGenerator, Expression, ExpressionPrinter, Fuzzer
 
 namespace MyConsole
 {
@@ -13,7 +9,7 @@ namespace MyConsole
     {
         static void Main(string[] args)
         {
-            // ============= 1) Вводим путь до файла с грамматикой =============
+            // 1) Вводим путь до файла с грамматикой
             Console.WriteLine("Введите путь до файла с грамматикой (например, C:\\Temp\\Test.txt):");
             string grammarPath = Console.ReadLine().Trim();
             if (!File.Exists(grammarPath))
@@ -24,7 +20,7 @@ namespace MyConsole
 
             try
             {
-                // ============= 2) Генерируем код из грамматики =============
+                // 2) Генерируем код из грамматики
                 var classCreator = new ClassCreator(grammarPath);
 
                 // Проверка грамматики
@@ -37,9 +33,8 @@ namespace MyConsole
                     new ParserGenerator(classCreator.KnownTypes, classCreator.Rules)
                     .GenerateParserClass();
 
-                // ============= 3) Сохраняем эти файлы на рабочий стол =============
+                // 3) Сохраняем файлы на рабочем столе
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-
                 string classesPath = Path.Combine(desktop, "GeneratedClasses.cs");
                 string parserPath = Path.Combine(desktop, "GeneratedParser.cs");
 
@@ -50,13 +45,12 @@ namespace MyConsole
                 Console.WriteLine("  " + classesPath);
                 Console.WriteLine("  " + parserPath);
 
-                // ============= 4) Формируем единый код для Roslyn =============
-                // *Важно:* using сверху, потом namespace, потом код классов/парсера
+                //4) Формируем единый код для Roslyn
                 string fullCode = @$"
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using ParserRulesGenerator; // Чтобы видеть Expression и другие классы
+using ParserRulesGenerator;
 
 namespace Generated
 {{
@@ -65,18 +59,12 @@ namespace Generated
     {generatedParserCode}
 }}
 ";
-
-                // ============= 5) Компиляция в памяти через Roslyn =============
+                // 5) Компиляция в памяти через Roslyn
                 var syntaxTree = CSharpSyntaxTree.ParseText(fullCode);
-
-                // Собираем References. Вариант «взять все сборки из текущего AppDomain»
                 var references = AppDomain.CurrentDomain.GetAssemblies()
                     .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
                     .Select(a => MetadataReference.CreateFromFile(a.Location))
                     .ToList();
-
-                // Если Expression лежит в ParserRulesGenerator.dll, уже должно быть внутри AppDomain,
-                // но на всякий случай можно добавить:
                 references.Add(MetadataReference.CreateFromFile(typeof(Expression).Assembly.Location));
 
                 var compilation = CSharpCompilation.Create(
@@ -97,18 +85,48 @@ namespace Generated
                         return;
                     }
 
-                    // Загружаем сборку в память
                     ms.Seek(0, SeekOrigin.Begin);
                     var assembly = Assembly.Load(ms.ToArray());
 
-                    // ============= 6) Создаём объект Parser из сгенерированного кода =============
-                    // В fullCode namespace = Generated, а класс = Parser
+                    // 6) Создаём объект Parser из сгенерированного кода
                     var parserType = assembly.GetType("Generated.Parser");
                     object parserInstance = Activator.CreateInstance(parserType);
 
                     Console.WriteLine("\n=== Сгенерированный Parser готов к работе! ===");
 
-                    // ============= 7) Входим в цикл, где парсим ввод =============
+                    // 7) Режим фаззинга
+                    Console.WriteLine("\nЗапустить фаззер для тестирования парсера? (y/n):");
+                    string runFuzzer = Console.ReadLine().Trim().ToLower();
+                    if (runFuzzer == "y" || runFuzzer == "yes")
+                    {
+                        Console.WriteLine("\n=== Фаззер: тестовые строки ===");
+                        foreach (var rule in classCreator.Rules)
+                        {
+                            // Пропускаем правила-ошибки
+                            if (rule.IsErrorRule)
+                                continue;
+
+                            // Генерируем тестовую строку для текущего правила
+                            string testString = Fuzzer.FuzzRule(rule, classCreator.KnownTypes);
+                            Console.WriteLine($"\nПравило '{rule.RuleName}': {testString}");
+
+                            try
+                            {
+                                var parseMethod = parserType.GetMethod("Parse");
+                                object resultObj = parseMethod.Invoke(parserInstance, new object[] { testString });
+
+                                Console.WriteLine("Результат парсинга:");
+                                PrintResultObject(resultObj);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("Ошибка при парсинге: " + ex.Message);
+                            }
+                            Console.WriteLine(new string('-', 40));
+                        }
+                    }
+
+                    // 8) Интерфейс для ручного ввода
                     while (true)
                     {
                         Console.WriteLine("\nВведите строку для парсинга (exit/выход для выхода):");
@@ -122,15 +140,11 @@ namespace Generated
 
                         try
                         {
-                            // Вызовем Parse
                             var parseMethod = parserType.GetMethod("Parse");
                             object resultObj = parseMethod.Invoke(parserInstance, new object[] { inputLine });
 
                             Console.WriteLine("\n=== РЕЗУЛЬТАТ ПАРСИНГА ===");
-                            // Печатаем тип
                             Console.WriteLine("Тип: " + resultObj.GetType().Name);
-
-                            // 8) Печатаем содержимое
                             PrintResultObject(resultObj);
                         }
                         catch (Exception ex)
@@ -140,13 +154,9 @@ namespace Generated
                     }
                 }
             }
-            catch (TargetInvocationException ex)
-            {
-                Console.WriteLine("Ошибка при парсинге: " + ex.InnerException?.Message ?? ex.Message);
-            }
             catch (Exception ex)
             {
-                Console.WriteLine("Ошибка при парсинге: " + ex.Message);
+                Console.WriteLine("Ошибка при парсинге: " + (ex.InnerException?.Message ?? ex.Message));
             }
 
 
@@ -155,18 +165,17 @@ namespace Generated
         }
 
         /// <summary>
-        /// Печатает информацию о распаршенном объекте (пробует найти Value, Expression и т.д.)
+        /// Рекурсивно печатает свойства распарсенного объекта.
+        /// Если объект является Expression, используется ExpressionPrinter.
         /// </summary>
         static void PrintResultObject(object resultObj, string indent = "")
         {
             if (resultObj is Expression expr)
             {
-                // Если это алгебраическое выражение, используем наш ExpressionPrinter
                 ExpressionPrinter.Print(expr, indent);
                 return;
             }
 
-            // В остальных случаях смотрим свойства
             var props = resultObj.GetType().GetProperties();
             if (props.Length == 0)
             {
@@ -177,15 +186,12 @@ namespace Generated
             foreach (var p in props)
             {
                 var value = p.GetValue(resultObj);
-
-                // Если значение == null
                 if (value == null)
                 {
                     Console.WriteLine($"{indent}{p.Name} = null");
                     continue;
                 }
 
-                // Если это тоже Expression -> печатаем дерево
                 if (value is Expression exprProp)
                 {
                     Console.WriteLine($"{indent}{p.Name} = Expression AST:");
@@ -193,11 +199,9 @@ namespace Generated
                 }
                 else
                 {
-                    // Пробуем найти свойство Value
                     var valProp = value.GetType().GetProperty("Value");
                     if (valProp != null)
                     {
-                        // Например, VarName.Value = "x"
                         var innerVal = valProp.GetValue(value);
                         Console.WriteLine($"{indent}{p.Name} = {innerVal}");
                     }
@@ -206,13 +210,11 @@ namespace Generated
                         if (value.GetType().Namespace == "Generated"
                             || value.GetType().Namespace == "ParserRulesGenerator")
                         {
-                            // Рекурсивно печатаем
                             Console.WriteLine($"{indent}{p.Name} ->:");
                             PrintResultObject(value, indent + "  ");
                         }
                         else
                         {
-                            // Иначе просто печатаем ToString()
                             Console.WriteLine($"{indent}{p.Name} = {value}");
                         }
                     }

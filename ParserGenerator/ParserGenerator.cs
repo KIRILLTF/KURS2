@@ -23,8 +23,6 @@ namespace ParserRulesGenerator
         /// <summary>
         /// Генерирует класс Parser, в котором для каждого RULE: и ERROR:
         /// создаются статические поля Regex и if-блоки.
-        /// - Обычные RULE: -> if(...) { ... return new RuleName(...); }
-        /// - ERROR: -> if(...) { throw new Exception("Пользовательская ошибка: ..."); }
         /// Порядок: сначала обрабатываем ERROR-правила, затем обычные.
         /// </summary>
         public string GenerateParserClass()
@@ -158,8 +156,14 @@ namespace ParserRulesGenerator
                 if (string.Equals(slotName, "Expression", StringComparison.OrdinalIgnoreCase))
                 {
                     // Разбор выражения через рекурсивный спуск
-                    typedVars.Add($"var {typedVarName} = ParserRulesGenerator.ExpressionParser.ParseExpressionNode({rawVarName});");
+                    typedVars.Add($@"
+var {typedVarName} = ParserRulesGenerator.ExpressionParser.ParseExpressionNode({rawVarName});
+if ({typedVarName} is ParserRulesGenerator.ErrorExpr error_{typedVarName})
+    throw new Exception(""Ошибка в выражении: "" + error_{typedVarName}.Message);");
+
+
                     constructorArgs.Add(typedVarName);
+
                 }
                 else if (!_knownTypes.ContainsKey(slotName) && _rules.Any(r => r.RuleName.Equals(slotName, StringComparison.OrdinalIgnoreCase)))
                 {

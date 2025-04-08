@@ -121,6 +121,10 @@ namespace ParserRulesGenerator
             {
                 return new ErrorExpr($"Лишние токены после выражения: {_tokens[_pos]}");
             }
+
+            if (expr == null)
+                return new ErrorExpr("Парсер вернул null");
+
             return expr;
         }
 
