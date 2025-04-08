@@ -1,5 +1,9 @@
-﻿using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Globalization;
 
 namespace ParserRulesGenerator
 {
@@ -18,12 +22,10 @@ namespace ParserRulesGenerator
 
         /// <summary>
         /// Генерирует класс Parser, в котором для каждого RULE: и ERROR:
-        /// создаём статические поля Regex и if-блоки.
-        ///
+        /// создаются статические поля Regex и if-блоки.
         /// - Обычные RULE: -> if(...) { ... return new RuleName(...); }
-        /// - ERROR: -> if(...) { throw new Exception("..."); }
-        ///
-        /// Порядок: Сначала обрабатываем ERROR-правила, затем обычные.
+        /// - ERROR: -> if(...) { throw new Exception("Пользовательская ошибка: ..."); }
+        /// Порядок: сначала обрабатываем ERROR-правила, затем обычные.
         /// </summary>
         public string GenerateParserClass()
         {
@@ -44,15 +46,14 @@ namespace ParserRulesGenerator
                 // Соберём паттерн
                 string regexPattern = BuildRegexPattern(rule.RuleBody);
 
-                // Поле Regex
+                // Создаём поле Regex (используем verbatim literal)
                 patternFields.Add(
                     $"    private static readonly Regex {fieldName} = new(@\"{regexPattern}\", RegexOptions.Compiled);"
                 );
 
-                // if-блок
+                // Если правило-ошибка
                 if (rule.IsErrorRule)
                 {
-                    // Ошибочное правило
                     string block = $@"
      // Error rule: {rule.RuleName}
      if ({fieldName}.IsMatch(input))
@@ -63,13 +64,11 @@ namespace ParserRulesGenerator
                 }
                 else
                 {
-                    // Обычное правило
                     string block = BuildIfBlock(rule, fieldName);
                     normalIfBlocks.Add(block);
                 }
             }
 
-            // Выводим поля
             foreach (var line in patternFields)
                 sb.AppendLine(line);
 
@@ -77,11 +76,9 @@ namespace ParserRulesGenerator
             sb.AppendLine("    public object Parse(string input)");
             sb.AppendLine("    {");
 
-            // Сначала ERROR
             foreach (var errBlock in errorIfBlocks)
                 sb.AppendLine(errBlock);
 
-            // Потом нормальные правила
             foreach (var ruleBlock in normalIfBlocks)
                 sb.AppendLine(ruleBlock);
 
@@ -93,59 +90,51 @@ namespace ParserRulesGenerator
         }
 
         /// <summary>
-        /// Построить Regex-паттерн, заменяя <Type> на (паттерн) или (.+?) для Expression
+        /// Заменяет каждый слот в RuleBody соответствующим Regex-паттерном.
+        /// Если слот равен "Expression", генерирует (.+?) (и ожидается, что разбор выражения осуществляется рекурсивным спуском).
         /// </summary>
         private string BuildRegexPattern(string ruleBody)
         {
             var sb = new StringBuilder();
             int curIndex = 0;
-
             var matches = Regex.Matches(ruleBody, @"<([^>]+)>");
             foreach (Match m in matches)
             {
-                // Текст до <...>
                 string literal = ruleBody.Substring(curIndex, m.Index - curIndex);
                 sb.Append(Regex.Escape(literal));
 
-                // Вырезаем имя слота
                 string slot = m.Groups[1].Value.Trim();
-
-                // Особый случай: Expression
                 if (string.Equals(slot, "Expression", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Парсим всё что угодно до следующего разделителя
                     sb.Append("(.+?)");
                 }
                 else if (_knownTypes.TryGetValue(slot, out var info))
                 {
                     string pattern = info.Pattern.Trim();
                     if (pattern.StartsWith("(") && pattern.EndsWith(")"))
-                    {
-                        // Уберём внешние скобки
                         pattern = pattern.Substring(1, pattern.Length - 2);
-                    }
                     sb.Append("(" + pattern + ")");
                 }
                 else
                 {
-                    // fallback
                     sb.Append("(.+?)");
                 }
-
                 curIndex = m.Index + m.Length;
             }
-
-            // Хвост
             if (curIndex < ruleBody.Length)
             {
                 string tail = ruleBody.Substring(curIndex);
                 sb.Append(Regex.Escape(tail));
             }
-
-            // Добавим ^\s*...\s*$
             return "^\\s*" + sb.ToString() + "\\s*$";
         }
 
+        /// <summary>
+        /// Формирует блок if для проверки соответствия шаблона и создания объекта правила.
+        /// Для слота, равного "Expression", вызывается ExpressionParser.ParseExpressionNode.
+        /// Если слот ссылается на правило (не найден в _knownTypes, но есть среди _rules), то используется raw-значение.
+        /// Иначе, обрабатывается как известный тип.
+        /// </summary>
         private string BuildIfBlock(GrammarRule rule, string fieldName)
         {
             var sb = new StringBuilder();
@@ -164,35 +153,37 @@ namespace ParserRulesGenerator
                 string rawVarName = $"raw{i + 1}";
                 string typedVarName = $"slot{i + 1}";
 
-                // Считываем строку
                 rawVars.Add($"var {rawVarName} = match.Groups[{groupIndex}].Value;");
 
                 if (string.Equals(slotName, "Expression", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Вызываем ExpressionParser
-                    typedVars.Add($"var {typedVarName} = ParserRulesGenerator.ExpressionParser.Parse({rawVarName});");
+                    // Разбор выражения через рекурсивный спуск
+                    typedVars.Add($"var {typedVarName} = ParserRulesGenerator.ExpressionParser.ParseExpressionNode({rawVarName});");
                     constructorArgs.Add(typedVarName);
+                }
+                else if (!_knownTypes.ContainsKey(slotName) && _rules.Any(r => r.RuleName.Equals(slotName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Если слот ссылается на правило, используем raw-значение (fallback как строка)
+                    typedVars.Add($"var {typedVarName} = {rawVarName};");
+                    constructorArgs.Add(rawVarName);
                 }
                 else
                 {
-                    // Обычный слот, возможно известного типа
                     string netType = "string";
                     if (_knownTypes.TryGetValue(slotName, out var info))
                         netType = info.NetType;
 
                     string pascalClassName = ToPascalCase(slotName);
                     string parseCode = GetParseExpression(netType, rawVarName);
-
-                    // Пример: var slot1 = new VarName { Value = raw1 };
                     typedVars.Add($"var {typedVarName} = new {pascalClassName} {{ Value = {parseCode} }};");
                     constructorArgs.Add(typedVarName);
                 }
             }
 
-            foreach (var rv in rawVars)
-                sb.AppendLine("            " + rv);
-            foreach (var tv in typedVars)
-                sb.AppendLine("            " + tv);
+            foreach (var r in rawVars)
+                sb.AppendLine("            " + r);
+            foreach (var t in typedVars)
+                sb.AppendLine("            " + t);
 
             sb.AppendLine($"            return new {rule.RuleName}({string.Join(", ", constructorArgs)});");
             sb.AppendLine("        }");
@@ -203,14 +194,10 @@ namespace ParserRulesGenerator
         {
             switch (netType.ToLower())
             {
-                case "int":
-                    return $"int.Parse({rawVarName})";
-                case "bool":
-                    return $"bool.Parse({rawVarName})";
-                case "double":
-                    return $"double.Parse({rawVarName}, CultureInfo.InvariantCulture)";
-                default:
-                    return rawVarName;
+                case "int": return $"int.Parse({rawVarName})";
+                case "bool": return $"bool.Parse({rawVarName})";
+                case "double": return $"double.Parse({rawVarName}, CultureInfo.InvariantCulture)";
+                default: return rawVarName;
             }
         }
 

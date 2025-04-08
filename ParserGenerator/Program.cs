@@ -140,10 +140,15 @@ namespace Generated
                     }
                 }
             }
+            catch (TargetInvocationException ex)
+            {
+                Console.WriteLine("Ошибка при парсинге: " + ex.InnerException?.Message ?? ex.Message);
+            }
             catch (Exception ex)
             {
-                Console.WriteLine("Ошибка: " + ex.Message);
+                Console.WriteLine("Ошибка при парсинге: " + ex.Message);
             }
+
 
             Console.WriteLine("\nПрограмма завершена. Нажмите Enter...");
             Console.ReadLine();
