@@ -1,4 +1,8 @@
-﻿using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ParserRulesGenerator
@@ -42,7 +46,7 @@ namespace ParserRulesGenerator
 
                 if (line.StartsWith("TYPE:", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Пример: TYPE: varName ::= string [a-zA-Z_][a-zA-Z0-9_]*
+                    // Пример: TYPE: stringlit ::= string "([^"\\]*(\\.[^"\\]*)*)"
                     var rest = line.Substring("TYPE:".Length).Trim();
                     var parts = rest.Split(new[] { "::=" }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 2)
@@ -114,7 +118,9 @@ namespace ParserRulesGenerator
                 var (netType, pattern) = kvp.Value;
 
                 string className = ToPascalCase(typeName);
-                string escaped = pattern.Replace("\\", "\\\\");
+                // Для verbatim-строки достаточно заменить каждую кавычку на удвоенную.
+                string escaped = pattern.Replace("\"", "\"\"");
+
                 sb.AppendLine($"public class {className}");
                 sb.AppendLine("{");
                 sb.AppendLine($"    public {netType} Value {{ get; set; }}");

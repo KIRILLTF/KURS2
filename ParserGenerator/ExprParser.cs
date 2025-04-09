@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Globalization;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace ParserRulesGenerator
 {
-    // Печатает Expression-дерево (включая ошибки и вызовы функций)
+    // Печатает Expression-дерево (включая ошибки, вызовы функций и кортежи)
     public static class ExpressionPrinter
     {
         public static void Print(Expression expr, string indent = "")
@@ -34,6 +33,14 @@ namespace ParserRulesGenerator
                         Print(fce.Arguments[i], indent + "    ");
                     }
                     break;
+                case TupleExpr tuple:
+                    Console.WriteLine($"{indent}TupleExpr:");
+                    for (int i = 0; i < tuple.Items.Count; i++)
+                    {
+                        Console.WriteLine($"{indent}  Item{i + 1}:");
+                        Print(tuple.Items[i], indent + "    ");
+                    }
+                    break;
                 case ErrorExpr err:
                     Console.WriteLine($"{indent}ErrorExpr: {err.Message}");
                     break;
@@ -47,13 +54,12 @@ namespace ParserRulesGenerator
     // Базовый класс всех выражений
     public abstract class Expression { }
 
-    // Бинарная операция (например, x + y, x * y, x ^ y)
+    // Бинарное выражение: a + b, a * b, a ^ b, и т.д.
     public class BinaryExpr : Expression
     {
         public string Op;
         public Expression Left;
         public Expression Right;
-
         public BinaryExpr(string op, Expression left, Expression right)
         {
             Op = op;
@@ -62,21 +68,21 @@ namespace ParserRulesGenerator
         }
     }
 
-    // Числовое значение
+    // Числовой литерал
     public class NumberExpr : Expression
     {
         public double Value;
         public NumberExpr(double value) => Value = value;
     }
 
-    // Переменная (например, a, x)
+    // Переменная (идентификатор)
     public class VariableExpr : Expression
     {
         public string Name;
         public VariableExpr(string name) => Name = name;
     }
 
-    // Узел вызова функции
+    // Вызов функции, например: f(a, b)
     public class FunctionCallExpr : Expression
     {
         public string FunctionName;
@@ -88,7 +94,17 @@ namespace ParserRulesGenerator
         }
     }
 
-    // Узел-ошибка, позволяющий продолжить выполнение без выброса исключения.
+    // Кортеж выражений (например, (a, b))
+    public class TupleExpr : Expression
+    {
+        public List<Expression> Items;
+        public TupleExpr(List<Expression> items)
+        {
+            Items = items;
+        }
+    }
+
+    // Узел ошибки
     public class ErrorExpr : Expression
     {
         public string Message;
@@ -101,34 +117,31 @@ namespace ParserRulesGenerator
         private static int _pos;
 
         /// <summary>
-        /// Точка входа в разбор строки как арифметического выражения.
-        /// Если после разбора остаются лишние токены, возвращается ErrorExpr.
+        /// Точка входа: разбирает строку как арифметическое выражение.
+        /// Перед разбором вызывается CleanExpression, который удаляет завершающие запятые и лишние закрывающие скобки.
         /// </summary>
         public static Expression ParseExpressionNode(string input)
         {
-            return Parse(input);
+            return Parse(CleanExpression(input));
         }
 
         public static Expression Parse(string input)
         {
+            input = input.Trim();
             _tokens = Tokenize(input);
             _pos = 0;
 
             Expression expr = ParseExpr();
-
-            // Если после разбора остались токены, это ошибка
-            if (_pos < _tokens.Count)
-            {
-                return new ErrorExpr($"Лишние токены после выражения: {_tokens[_pos]}");
-            }
-
             if (expr == null)
                 return new ErrorExpr("Парсер вернул null");
+
+            // Пропускаем оставшиеся токены, если это только запятые или закрывающие скобки.
+            while (_pos < _tokens.Count && (_tokens[_pos] == ")" || _tokens[_pos] == ","))
+                _pos++;
 
             return expr;
         }
 
-        // Токенизирует строку, выделяя операторы, скобки, числа, идентификаторы и символ "^"
         private static List<string> Tokenize(string str)
         {
             str = str.Replace("^", " ^ ")
@@ -136,10 +149,10 @@ namespace ParserRulesGenerator
                      .Replace("+", " + ").Replace("-", " - ")
                      .Replace("*", " * ").Replace("/", " / ")
                      .Replace(",", " , ");
-            return str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            return new List<string>(str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
         }
 
-        // expr ::= Term { ("+" | "-") Term }*
+        // Expression ::= Term { ("+" | "-") Term }*
         private static Expression ParseExpr()
         {
             Expression left = ParseTerm();
@@ -155,7 +168,7 @@ namespace ParserRulesGenerator
             return left;
         }
 
-        // term ::= Factor { ("*" | "/") Factor }*
+        // Term ::= Factor { ("*" | "/") Factor }*
         private static Expression ParseTerm()
         {
             Expression left = ParseFactor();
@@ -172,7 +185,6 @@ namespace ParserRulesGenerator
         }
 
         // Factor ::= Primary { "^" Factor }*
-        // Реализовано с правой ассоциативностью: a ^ b ^ c = a ^ (b ^ c)
         private static Expression ParseFactor()
         {
             Expression left = ParsePrimary();
@@ -188,104 +200,112 @@ namespace ParserRulesGenerator
             return left;
         }
 
-        // Primary ::= number | variable | functionCall | "(" Expression ")"
+        // Primary ::= number | identifier | functionCall | parenthesized expression (или кортеж)
         private static Expression ParsePrimary()
         {
             string token = CurrentToken();
             if (token == null)
-            {
-                return new ErrorExpr("Ожидалось число, переменная, функция или '(' — но строка закончилась");
-            }
+                return new ErrorExpr("Ожидалось число, переменная, функция или '(' — строка закончилась");
 
-            // Если токен – число
             if (double.TryParse(token, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
             {
                 _pos++;
                 return new NumberExpr(val);
             }
-            // Если токен – идентификатор: может быть переменной или вызовом функции
             else if (Regex.IsMatch(token, @"^[a-zA-Z_][a-zA-Z0-9_]*$"))
             {
                 _pos++;
-                // Если после идентификатора сразу идёт "(", это вызов функции
                 if (CurrentToken() == "(")
-                {
                     return ParseFunctionCall(token);
-                }
-                else
-                {
-                    return new VariableExpr(token);
-                }
+                return new VariableExpr(token);
             }
-            // Если токен – открывающая скобка
             else if (token == "(")
             {
-                _pos++; // пропускаем "("
-                Expression expr = ParseExpr();
-                if (IsError(expr)) return expr;
-                if (CurrentToken() != ")")
-                {
-                    return new ErrorExpr("Ожидалась закрывающая скобка ')'");
-                }
-                _pos++; // пропускаем ")"
-                return expr;
+                return ParseParenExpression();
             }
             else
             {
-                return new ErrorExpr($"Неизвестный токен в выражении: {token}");
+                return new ErrorExpr($"Неизвестный токен: {token}");
             }
         }
 
-        // Разбирает вызов функции; имя функции уже прочитано (functionName)
-        // Ожидается список аргументов, разделённых запятыми, внутри круглых скобок.
+        /// <summary>
+        /// Разбирает выражение в круглых скобках.
+        /// Если внутри на внешнем уровне встречается запятая, считается, что это кортеж.
+        /// </summary>
+        private static Expression ParseParenExpression()
+        {
+            if (CurrentToken() != "(")
+                return new ErrorExpr("Ожидалась открывающая скобка '('");
+            _pos++; // пропускаем "("
+
+            List<Expression> items = new List<Expression>();
+            Expression expr = ParseExpr();
+            if (IsError(expr)) return expr;
+            items.Add(expr);
+
+            while (CurrentToken() == ",")
+            {
+                _pos++; // пропускаем запятую
+                Expression next = ParseExpr();
+                if (IsError(next)) return next;
+                items.Add(next);
+            }
+
+            if (CurrentToken() != ")")
+                return new ErrorExpr("Ожидалась закрывающая скобка ')'");
+            _pos++; // пропускаем ")"
+
+            if (items.Count == 1)
+                return items[0];
+            else
+                return new TupleExpr(items);
+        }
+
+        /// <summary>
+        /// Разбирает вызов функции. Имя функции уже прочитано.
+        /// Ожидается, что аргументы разделены запятыми.
+        /// </summary>
         private static Expression ParseFunctionCall(string functionName)
         {
-            // Текущий токен – "("; пропускаем его
             if (CurrentToken() != "(")
-            {
                 return new ErrorExpr("Ожидалась открывающая скобка '(' после имени функции");
-            }
             _pos++; // пропускаем "("
 
             List<Expression> args = new List<Expression>();
-
-            // Если список аргументов не пуст (следующий токен не ")")
-            if (CurrentToken() != ")")
+            if (CurrentToken() == ")")
             {
-                while (true)
-                {
-                    Expression arg = ParseExpr();
-                    if (IsError(arg))
-                        return arg;
-                    args.Add(arg);
+                _pos++;
+                return new FunctionCallExpr(functionName, args);
+            }
 
-                    // Если текущий токен – запятая, пропускаем её и продолжаем разбор следующего аргумента
-                    if (CurrentToken() == ",")
-                    {
-                        _pos++; // пропускаем запятую
-                        continue;
-                    }
-                    else
-                    {
-                        break;
-                    }
+            while (true)
+            {
+                Expression arg = ParseExpr();
+                if (IsError(arg))
+                    return arg;
+                args.Add(arg);
+
+                if (CurrentToken() == ",")
+                {
+                    _pos++; // пропускаем запятую
+                    continue;
+                }
+                else if (CurrentToken() == ")")
+                {
+                    _pos++; // пропускаем ")"
+                    break;
+                }
+                else
+                {
+                    return new ErrorExpr("Ожидалась запятая или закрывающая скобка ')' в вызове функции");
                 }
             }
-
-            // После аргументов должен идти ")" 
-            if (CurrentToken() != ")")
-            {
-                return new ErrorExpr("Ожидалась закрывающая скобка ')' в вызове функции");
-            }
-            _pos++; // пропускаем ")"
-
             return new FunctionCallExpr(functionName, args);
         }
 
-        // Вспомогательная функция: проверяет, является ли узел ошибкой
-        private static bool IsError(Expression expr) => expr is ErrorExpr;
+        private static string CurrentToken() => _pos < _tokens.Count ? _tokens[_pos] : null;
 
-        // Если текущий токен равен s, сдвигаем позицию и возвращаем true.
         private static bool Match(string s)
         {
             if (_pos < _tokens.Count && _tokens[_pos] == s)
@@ -296,11 +316,29 @@ namespace ParserRulesGenerator
             return false;
         }
 
-        // Возвращает текущий токен или null, если токены закончились.
-        private static string CurrentToken()
+        private static bool IsError(Expression expr) => expr is ErrorExpr;
+
+        /// <summary>
+        /// CleanExpression удаляет завершающие запятые и лишние закрывающие скобки,
+        /// не удаляя корректно обрамлённые внешние скобки.
+        /// </summary>
+        public static string CleanExpression(string expr)
         {
-            if (_pos >= _tokens.Count) return null;
-            return _tokens[_pos];
+            expr = expr.Trim();
+            while (expr.EndsWith(","))
+                expr = expr.Substring(0, expr.Length - 1).Trim();
+            while (CountChar(expr, ')') > CountChar(expr, '(') && expr.EndsWith(")"))
+                expr = expr.Substring(0, expr.Length - 1).Trim();
+            return expr;
+        }
+
+        private static int CountChar(string s, char c)
+        {
+            int count = 0;
+            foreach (char ch in s)
+                if (ch == c)
+                    count++;
+            return count;
         }
     }
 }
