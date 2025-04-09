@@ -12,7 +12,7 @@ namespace MyConsole
     {
         static void Main(string[] args)
         {
-            // 1) Вводим путь до файла с грамматикой =============
+            // 1) Вводим путь до файла с грамматикой
             Console.WriteLine("Введите путь до файла с грамматикой (например, C:\\Temp\\Test.txt):");
             string grammarPath = Console.ReadLine().Trim();
             if (!File.Exists(grammarPath))

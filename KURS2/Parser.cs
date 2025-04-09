@@ -5,9 +5,7 @@ using System.Text.RegularExpressions;
 
 class Parser
 {
-    // -----------------------------------------------------
     //  Регулярные выражения для Module, Import, Let
-    // -----------------------------------------------------
     private static readonly Regex modulePattern = new(
         @"^\s*module\s+([a-zA-Z0-9_.]+(?:\.[a-zA-Z0-9_]+)*)(?:\s*\(([^)]*)\))?\s+where$",
         RegexOptions.Compiled
@@ -23,9 +21,7 @@ class Parser
         RegexOptions.Compiled
     );
 
-    // -----------------------------------------------------
     //  Основной метод Parse
-    // -----------------------------------------------------
     public Sentence Parse(string input)
     {
         // Проверяем: module
@@ -74,9 +70,7 @@ class Parser
         throw new ArgumentException($"Ошибка: Некорректная строка — {input}");
     }
 
-    // -----------------------------------------------------
     //  Помощники для Module/Import/Let
-    // -----------------------------------------------------
 
     // Разбивает имя на части по точкам
     private List<string> SplitName(string name)
@@ -111,9 +105,7 @@ class Parser
             throw new ArgumentException($"Ошибка: Некорректное выражение — {expression}");
     }
 
-    // -----------------------------------------------------
     //  Метод SplitImports (как у вас)
-    // -----------------------------------------------------
     public string SplitImports(string text)
     {
         var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
@@ -136,9 +128,7 @@ class Parser
         return string.Join(Environment.NewLine, result);
     }
 
-    // -----------------------------------------------------
     //  Метод StringChanger (как у вас)
-    // -----------------------------------------------------
     public string StringChanger(string text)
     {
         List<string> lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).ToList();
@@ -164,10 +154,8 @@ class Parser
         return string.Join(Environment.NewLine, lines);
     }
 
-    // -----------------------------------------------------
     //  Ниже — логика рекурсивного спуска, расширенная
     //  для парсинга вызовов функций (func(a, b, c))
-    // -----------------------------------------------------
     private List<Token> tokens;
     private int currentTokenIndex;
     private Token CurrentToken => tokens[currentTokenIndex];
