@@ -12,7 +12,7 @@ namespace MyConsole
     {
         static void Main(string[] args)
         {
-            // ============= 1) Вводим путь до файла с грамматикой =============
+            // 1) Вводим путь до файла с грамматикой =============
             Console.WriteLine("Введите путь до файла с грамматикой (например, C:\\Temp\\Test.txt):");
             string grammarPath = Console.ReadLine().Trim();
             if (!File.Exists(grammarPath))
@@ -23,7 +23,7 @@ namespace MyConsole
 
             try
             {
-                // ============= 2) Генерируем код из грамматики =============
+                // 2) Генерируем код из грамматики
                 var classCreator = new ClassCreator(grammarPath);
 
                 // Проверка грамматики
@@ -36,7 +36,7 @@ namespace MyConsole
                     new ParserGenerator(classCreator.KnownTypes, classCreator.Rules)
                     .GenerateParserClass();
 
-                // ============= 3) Сохраняем файлы на рабочем столе =============
+                // 3) Сохраняем файлы на рабочем столе
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 string classesPath = Path.Combine(desktop, "GeneratedClasses.cs");
                 string parserPath = Path.Combine(desktop, "GeneratedParser.cs");
@@ -48,8 +48,7 @@ namespace MyConsole
                 Console.WriteLine("  " + classesPath);
                 Console.WriteLine("  " + parserPath);
 
-                // ============= 4) Формируем единый код для Roslyn =============
-                // *Важно:* using сверху, потом namespace, потом код классов/парсера
+                // 4) Формируем единый код для Roslyn
                 string fullCode = @$"
 using System;
 using System.Globalization;
@@ -63,14 +62,12 @@ namespace Generated
     {generatedParserCode}
 }}
 ";
-                // ============= 5) Компиляция в памяти через Roslyn =============
+                // 5) Компиляция в памяти через Roslyn
                 var syntaxTree = CSharpSyntaxTree.ParseText(fullCode);
                 var references = AppDomain.CurrentDomain.GetAssemblies()
                     .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
                     .Select(a => MetadataReference.CreateFromFile(a.Location))
                     .ToList();
-                // Если Expression лежит в ParserRulesGenerator.dll, уже должно быть внутри AppDomain,
-                // но на всякий случай можно добавить:
                 references.Add(MetadataReference.CreateFromFile(typeof(Expression).Assembly.Location));
 
                 var compilation = CSharpCompilation.Create(
@@ -94,14 +91,14 @@ namespace Generated
                     ms.Seek(0, SeekOrigin.Begin);
                     var assembly = Assembly.Load(ms.ToArray());
 
-                    // ============= 6) Создаём объект Parser из сгенерированного кода =============
+                    // 6) Создаём объект Parser из сгенерированного кода
                     // В fullCode namespace = Generated, а класс = Parser
                     var parserType = assembly.GetType("Generated.Parser");
                     object parserInstance = Activator.CreateInstance(parserType);
 
                     Console.WriteLine("\nСгенерированный Parser готов к работе!");
 
-                    // ============= 7) Режим фаззинга =============
+                    // 7) Режим фаззинга
                     Console.WriteLine("\nЗапустить фаззер для тестирования парсера? (y/n):");
                     string runFuzzer = Console.ReadLine().Trim().ToLower();
                     if (runFuzzer == "y" || runFuzzer == "yes")
@@ -133,7 +130,7 @@ namespace Generated
                         }
                     }
 
-                    // ============= 8) Интерфейс для ручного ввода =============
+                    // 8) Интерфейс для ручного ввода
                     while (true)
                     {
                         Console.WriteLine("\nВведите строку для парсинга (exit/выход для выхода):");
