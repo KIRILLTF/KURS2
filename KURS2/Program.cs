@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace FormatterWhile
 {
@@ -8,46 +9,29 @@ namespace FormatterWhile
     {
         static void Main()
         {
-            string str = @"module MyLinalg where
-       import Unused
-    import M1(f4, f2, f6)
-    
-       let solve(A, b  )   :=   LA.solve(A  ,  b  )
-    
-      import numpy.linalg as LA
-    
-     import M3.M2(f1, a3) 
-    import M1(f3, f7)
-    
-    import A2 import X4 import y6
-    import M1.M2(f3, f5)
-    
-    import M1(f1)
-    
-         import M2.M3.M4(a5)
-    
-    let some_root(a , b  , c  ) := (b + math.sqrt(discriminant(a, b, c))) / a where
-    
-      let discriminant(a, b, c) := (b ^ 2) - 4 * (a * d) * 9
-    
-      import math 
-    
-    let my_fun(x, y, z) := x + y + z where
-    
-    let my_constant := my_fun(1, 2, 3)
-";
+            // Ввод исходного кода с консоли.
+            Console.WriteLine("Введите исходный код (для завершения ввода наберите END):");
+            StringBuilder sb = new StringBuilder();
+            while (true)
+            {
+                string line = Console.ReadLine();
+                if (line.Trim().Equals("END", StringComparison.OrdinalIgnoreCase))
+                    break;
+                sb.AppendLine(line);
+            }
+            string str = sb.ToString();
 
-            // Применяем преобразования строки, если они нужны
+            // Применяем преобразования строки, если они нужны.
             Parser parser = new Parser();
             str = parser.StringChanger(str);
             str = parser.SplitImports(str);
 
-            // Разбиваем исходную строку на отдельные строки (предложения)
+            // Разбиваем исходную строку на отдельные строки (предложения).
             List<string> inputs = str
                 .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
                 .ToList();
 
-            // Создаём экземпляр токенизатора
+            // Создаём экземпляр токенизатора.
             Tokenizer tokenizer = new Tokenizer();
 
             Console.WriteLine("== Токенизация входных строк ==\n");
@@ -66,7 +50,7 @@ namespace FormatterWhile
                 }
             }
 
-            // Парсинг строк с использованием вашего существующего парсера
+            // Парсинг строк с использованием существующего парсера.
             List<Sentence> Sentences = new List<Sentence>();
 
             foreach (var input in inputs)
@@ -78,18 +62,18 @@ namespace FormatterWhile
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Console.WriteLine("Ошибка парсинга: " + ex.Message);
                 }
             }
 
-            // Применение форматирования
+            // Применение форматирования.
             Sentences = new Formatter().Format(Sentences);
 
-            // Вывод форматированного кода
+            // Вывод форматированного кода.
             Console.WriteLine("== Форматированный код ==\n");
             new Output().PrintFormattedSentences(Sentences);
 
-            // Вывод AST для каждого LetSentence
+            // Вывод AST для каждого LetSentence.
             Console.WriteLine("\n== AST выражений ==\n");
             foreach (var s in Sentences)
             {
@@ -97,7 +81,7 @@ namespace FormatterWhile
                 {
                     Console.WriteLine($"LET {string.Join(".", let.Name)}(...) := {let.ExpressionString}");
                     Console.WriteLine("Дерево выражения:");
-                    AstPrinter.PrintAst(let.ExpressionAst);  // Вызов метода печати AST
+                    AstPrinter.PrintAst(let.ExpressionAst);
                     Console.WriteLine();
                 }
             }
