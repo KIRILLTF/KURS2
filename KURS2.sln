@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.7.34024.191
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KURS2", "KURS2\KURS2.csproj", "{489EFB7A-EA65-4691-865E-A6BA8733BBAB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SelfWrittenParser", "KURS2\SelfWrittenParser.csproj", "{489EFB7A-EA65-4691-865E-A6BA8733BBAB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParserGenerator", "ParserGenerator\ParserGenerator.csproj", "{BE58A2EC-C0EA-461A-B17E-1A7F1A380AC9}"
 EndProject

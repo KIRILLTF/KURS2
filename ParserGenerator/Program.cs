@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using ParserRulesGenerator;  // <- Чтобы видеть ClassCreator, ParserGenerator, Expression, ExpressionPrinter, Fuzzer
+using ParserRulesGenerator;  // Чтобы видеть ClassCreator, ParserGenerator, Expression, ExpressionPrinter, Fuzzer
 
 namespace MyConsole
 {
