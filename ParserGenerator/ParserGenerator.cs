@@ -54,7 +54,6 @@ namespace ParserRulesGenerator
                 if (rule.IsErrorRule)
                 {
                     string block = $@"
-     // Error rule: {rule.RuleName}
      if ({fieldName}.IsMatch(input))
      {{
          throw new Exception(""Пользовательская ошибка: {rule.RuleName}"");

@@ -36,13 +36,33 @@ namespace MyConsole
                     new ParserGenerator(classCreator.KnownTypes, classCreator.Rules)
                     .GenerateParserClass();
 
+                // 2.1) Тела классов и парсера (без using)
+                string classesBody = classCreator.GenerateClasses();
+                string parserBody = new ParserGenerator(classCreator.KnownTypes,
+                                                         classCreator.Rules)
+                                     .GenerateParserClass();
+
+                // 2.2) Формируем версии для сохранения на рабочем столе
+                const string fileHeader = "using ParserRulesGenerator;" + "\n";
+
+                bool HasHeader(string text) =>
+                    text.TrimStart().StartsWith("using ParserRulesGenerator;", StringComparison.Ordinal);
+
+                string generatedClassesFile = HasHeader(classesBody)
+                                              ? classesBody
+                                              : fileHeader + classesBody;
+
+                string generatedParserFile = HasHeader(parserBody)
+                                              ? parserBody
+                                              : fileHeader + parserBody;
+
                 // 3) Сохраняем файлы на рабочем столе
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 string classesPath = Path.Combine(desktop, "GeneratedClasses.cs");
                 string parserPath = Path.Combine(desktop, "GeneratedParser.cs");
 
-                File.WriteAllText(classesPath, generatedClassesCode);
-                File.WriteAllText(parserPath, generatedParserCode);
+                File.WriteAllText(classesPath, generatedClassesFile);
+                File.WriteAllText(parserPath, generatedParserFile);
 
                 Console.WriteLine("Сгенерированы файлы:");
                 Console.WriteLine("  " + classesPath);
@@ -57,11 +77,10 @@ using ParserRulesGenerator; // Чтобы видеть Expression и други�
 
 namespace Generated
 {{
-    {generatedClassesCode}
+    {classesBody}
 
-    {generatedParserCode}
-}}
-";
+    {parserBody}
+}}";
                 // 5) Компиляция в памяти через Roslyn
                 var syntaxTree = CSharpSyntaxTree.ParseText(fullCode);
                 var references = AppDomain.CurrentDomain.GetAssemblies()

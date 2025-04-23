@@ -151,7 +151,6 @@ namespace ParserRulesGenerator
                     // Проверяем: Expression?
                     if (string.Equals(slotType, "Expression", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Генерируем что-то вроде: public Expression Expression1 { get; }
                         if (!typeCount.ContainsKey(slotType))
                             typeCount[slotType] = 1;
                         else

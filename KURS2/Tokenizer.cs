@@ -1,11 +1,20 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 class Tokenizer
 {
-    private static readonly Regex patterns = new(
-        @"^(\s*module\s+[a-zA-Z0-9_.]+(?:\.[a-zA-Z0-9_]+)*(?:\([^)]*\))?\s+where" +
-        @"|\s*import\s+[a-zA-Z0-9_.]+(?:\.[a-zA-Z0-9_]+)*(?:\([^)]*\))?(\s+as\s+[a-zA-Z0-9_.]+)?" +
-        @"|\s*let\s+([a-zA-Z0-9_.]+)(?:\(([^)]*)\))?\s*:=\s*(.+?)(?:\s+where)?)$",
+    private static readonly Regex patterns = new Regex(
+        @"^\s*(?:" +
+          @"module\s+[A-Za-z0-9_.]+(?:\.[A-Za-z0-9_]+)*(?:\s*\([^)]*\))?\s+where" +
+        @"|import\s+[A-Za-z0-9_.]+(?:\.[A-Za-z0-9_]+)*(?:\s*\(\s*[A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+)*\s*\))?" +
+        @"|let\s+[A-Za-z0-9_.]+(?:\s*\([^)]*\))?\s*:=\s*.+?(?:\s+where)?" +
+        @")\s*$",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex tokenPattern = new Regex(
+        @"(module|import|let|where|as|:=|\w+|[(),+*/=-])",
         RegexOptions.Compiled
     );
 
@@ -15,8 +24,6 @@ class Tokenizer
             throw new ArgumentException($"Ошибка: Некорректная строка — {input}");
 
         var tokens = new List<string>();
-        var tokenPattern = new Regex(@"(module|import|let|where|as|:=|\w+|[(),+*/-])", RegexOptions.Compiled);
-
         foreach (Match match in tokenPattern.Matches(input))
             tokens.Add(match.Value);
 
